@@ -1,6 +1,11 @@
 namespace NServiceBus
 {
+    using System;
     using System.Diagnostics;
+    using System.Net.Http;
+    using System.Net.Http.Headers;
+    using System.Reflection;
+    using System.Text;
     using System.Threading;
     using System.Windows.Forms;
     using Logging;
@@ -24,6 +29,13 @@ namespace NServiceBus
 
             if (string.IsNullOrWhiteSpace(licenseText))
             {
+                // Display the trial start dialog.
+                if (FirstTimeUser())
+                {
+                    TrackFirstTimeUsageEvent();
+                    SetupFirstTimeRegistryKeys();
+                    PromptUserForFirstTimeUse();
+                }
                 license = GetTrialLicense();
                 PromptUserForLicenseIfTrialHasExpired();
                 return;
@@ -57,6 +69,65 @@ namespace NServiceBus
             }
 
             license = foundLicense;
+        }
+
+        static bool FirstTimeUser()
+        {
+            // Check for the presence of HKCU:Software/NServiceBus
+            using (var regNsbRoot = Registry.CurrentUser.OpenSubKey(@"Software\NServiceBus"))
+            {
+                if (regNsbRoot == null)
+                {
+                    //Check for the presence of HKCU:SOFTWARE\ParticularSoftware
+                    using (var regParticularRoot = Registry.CurrentUser.OpenSubKey(@"Software\ParticularSoftware"))
+                    {
+                        if (regParticularRoot == null)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+
+        private void TrackFirstTimeUsageEvent()
+        {
+            // Get the current version of NServiceBus that's being used
+            var assembly = Assembly.GetExecutingAssembly();
+            var version = assembly.GetName().Version.ToString();
+
+            if (assembly.Location != null)
+            {
+                version = FileVersionInfo.GetVersionInfo(assembly.Location).FileVersion;
+            }
+
+            try
+            {
+                var azureFuncUrl =
+                    "https://first-time-nuget-user.azurewebsites.net/api/TrackNewUser?code=1bkjzkbyeuf1ed46l87yom9529yu5ykzt81mjx65kgtmmv4pldiyxzvfprxf9s3xqxykf279cnmi";
+
+                var postData = $"{{\"version\":\"{version}\"}}";
+                var client = new HttpClient();
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                var request = new HttpRequestMessage(HttpMethod.Post, azureFuncUrl);
+                request.Content = new StringContent(postData, Encoding.UTF8, "application/json");
+                var response = client.SendAsync(request).GetAwaiter().GetResult();
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception)
+            {
+                Logger.WarnFormat("Could not report first time user stat to GoogleAnalytics.");
+            }
+        }
+
+        void SetupFirstTimeRegistryKeys()
+        {
+            var regRoot = Registry.CurrentUser.CreateSubKey(@"Software\ParticularSoftware");
+            regRoot?.SetValue("NuGetUser", "true");
+            regRoot?.Close();
         }
 
         static License GetTrialLicense()
@@ -97,6 +168,27 @@ namespace NServiceBus
             return LicenseLocationConventions.TryFindLicenseText();
         }
 
+
+        void PromptUserForFirstTimeUse()
+        {
+            if (!(Debugger.IsAttached && SystemInformation.UserInteractive))
+            {
+                //We only prompt user if user is in debugging mode and we are running in interactive mode
+                return;
+            }
+
+            bool createdNew;
+            using (new Mutex(true, $"NServiceBus-{GitFlowVersion.MajorMinor}", out createdNew))
+            {
+                if (!createdNew)
+                {
+                    //Dialog already displaying for this software version by another process, so we just use the already assigned license.
+                    return;
+                }
+                LicenseFormDisplayer.PromptUserForFirstTimeUse();
+            }
+        }
+
         void PromptUserForLicenseIfTrialHasExpired()
         {
             if (!(Debugger.IsAttached && SystemInformation.UserInteractive))
@@ -116,7 +208,7 @@ namespace NServiceBus
 
                 if (license == null || LicenseExpirationChecker.HasLicenseExpired(license))
                 {
-                    var licenseProvidedByUser = LicenseExpiredFormDisplayer.PromptUserForLicense(license);
+                    var licenseProvidedByUser = LicenseFormDisplayer.PromptUserForLicense(license);
 
                     if (licenseProvidedByUser != null)
                     {
