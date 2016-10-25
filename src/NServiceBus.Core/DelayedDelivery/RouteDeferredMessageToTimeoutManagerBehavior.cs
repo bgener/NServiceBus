@@ -43,11 +43,17 @@ namespace NServiceBus
             var headers = new Dictionary<string, string>(context.Message.Headers);
             var originalTag = routingStrategy.Apply(headers);
             var unicastTag = originalTag as UnicastAddressTag;
-            if (unicastTag == null)
+            if (unicastTag != null)
             {
-                throw new Exception("Delayed delivery using the Timeout Manager is only supported for messages with unicast routing");
+                return new TimeoutManagerRoutingStrategy(timeoutManagerAddress, unicastTag.Destination, TimeoutManagerDestinationType.Unicast, deliverAt);
             }
-            return new TimeoutManagerRoutingStrategy(timeoutManagerAddress, unicastTag.Destination, deliverAt);
+
+            var multicastTag = originalTag as MulticastAddressTag;
+            if (multicastTag != null)
+            {
+                return new TimeoutManagerRoutingStrategy(timeoutManagerAddress, multicastTag.MessageType.AssemblyQualifiedName, TimeoutManagerDestinationType.Multicast, deliverAt);
+            }
+            throw new Exception("Unsupported address tag: " + originalTag);
         }
 
         static bool IsDeferred(IExtendable context, out DateTime deliverAt)

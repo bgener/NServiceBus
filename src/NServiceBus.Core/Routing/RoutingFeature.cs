@@ -52,13 +52,19 @@
             configuredPublishers.Apply(publishers, conventions, enforceBestPractices);
 
             var outboundRoutingPolicy = transportInfrastructure.OutboundRoutingPolicy;
-            context.Pipeline.Register(b =>
+            if (outboundRoutingPolicy.Publishes == OutboundRoutingType.Unicast)
             {
-                var unicastSendRouter = new UnicastSendRouter(unicastRoutingTable, endpointInstances, i => transportInfrastructure.ToTransportAddress(LogicalAddress.CreateRemoteAddress(i)));
-                return new UnicastSendRouterConnector(context.Settings.LocalAddress(), context.Settings.InstanceSpecificQueue(), unicastSendRouter, distributionPolicy, i => transportInfrastructure.ToTransportAddress(LogicalAddress.CreateRemoteAddress(i)));
-            }, "Determines how the message being sent should be routed");
 
-            context.Pipeline.Register(new UnicastReplyRouterConnector(), "Determines how replies should be routed");
+                context.Pipeline.Register(b =>
+                {
+                    var router = new UnicastSendRouter(unicastRoutingTable, endpointInstances, i => transportInfrastructure.ToTransportAddress(LogicalAddress.CreateRemoteAddress(i)));
+                    return new UnicastSendRouterConnector(context.Settings.LocalAddress(), context.Settings.InstanceSpecificQueue(), router, distributionPolicy, i => transportInfrastructure.ToTransportAddress(LogicalAddress.CreateRemoteAddress(i)));
+                }, "Determines how the message being sent should be routed");
+            }
+            else
+            {
+                context.Pipeline.Register(_ => new MulticastSendRouterBehavior(context.Settings.LocalAddress(), context.Settings.InstanceSpecificQueue()), "Determines how the message being sent should be routed");
+            }
             if (outboundRoutingPolicy.Publishes == OutboundRoutingType.Unicast)
             {
                 context.Pipeline.Register(b =>
@@ -71,6 +77,7 @@
             {
                 context.Pipeline.Register(new MulticastPublishRouterBehavior(), "Determines how the published messages should be routed");
             }
+            context.Pipeline.Register(new UnicastReplyRouterConnector(), "Determines how replies should be routed");
 
             if (canReceive)
             {

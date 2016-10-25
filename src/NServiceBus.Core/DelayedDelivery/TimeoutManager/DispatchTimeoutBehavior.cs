@@ -28,9 +28,11 @@ namespace NServiceBus
 
             timeoutData.Headers[Headers.TimeSent] = DateTimeExtensions.ToWireFormattedString(DateTime.UtcNow);
             timeoutData.Headers["NServiceBus.RelatedToTimeoutId"] = timeoutData.Id;
+            var addressTag = TimeoutManagerDestinationType.CreateAddressTag(context.Headers, timeoutData.Destination);
+            timeoutData.Headers.Remove(TimeoutManagerHeaders.DestinationType);
 
             var outgoingMessage = new OutgoingMessage(context.MessageId, timeoutData.Headers, timeoutData.State);
-            var transportOperation = new TransportOperation(outgoingMessage, new UnicastAddressTag(timeoutData.Destination), dispatchConsistency);
+            var transportOperation = new TransportOperation(outgoingMessage, addressTag, dispatchConsistency);
             await dispatcher.Dispatch(new TransportOperations(transportOperation), context.TransportTransaction, context.Context).ConfigureAwait(false);
 
             var timeoutRemoved = await persister.TryRemove(timeoutId, context.Context).ConfigureAwait(false);

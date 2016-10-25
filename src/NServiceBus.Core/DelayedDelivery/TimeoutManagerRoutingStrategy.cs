@@ -8,11 +8,13 @@ namespace NServiceBus
     {
         string timeoutManagerAddress;
         string ultimateDestination;
+        string destinationType;
         DateTime deliverAt;
 
-        public TimeoutManagerRoutingStrategy(string timeoutManagerAddress, string ultimateDestination, DateTime deliverAt)
+        public TimeoutManagerRoutingStrategy(string timeoutManagerAddress, string destination, string destinationType, DateTime deliverAt)
         {
-            this.ultimateDestination = ultimateDestination;
+            this.ultimateDestination = destination;
+            this.destinationType = destinationType;
             this.deliverAt = deliverAt;
             this.timeoutManagerAddress = timeoutManagerAddress;
         }
@@ -20,6 +22,7 @@ namespace NServiceBus
         public override AddressTag Apply(Dictionary<string, string> headers)
         {
             headers[TimeoutManagerHeaders.RouteExpiredTimeoutTo] = ultimateDestination;
+            headers[TimeoutManagerHeaders.DestinationType] = destinationType;
             headers[TimeoutManagerHeaders.Expire] = DateTimeExtensions.ToWireFormattedString(deliverAt);
 
             return new UnicastAddressTag(timeoutManagerAddress);

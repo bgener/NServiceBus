@@ -42,6 +42,7 @@
             {
                 // transport doesn't support native deferred messages, reroute to timeout manager:
                 outgoingMessage.Headers[TimeoutManagerHeaders.RouteExpiredTimeoutTo] = endpointInputQueue;
+                outgoingMessage.Headers[TimeoutManagerHeaders.DestinationType] = TimeoutManagerDestinationType.Unicast;
                 outgoingMessage.Headers[TimeoutManagerHeaders.Expire] = DateTimeExtensions.ToWireFormattedString(DateTime.UtcNow + delay);
                 messageDestination = new UnicastAddressTag(timeoutManagerAddress);
             }

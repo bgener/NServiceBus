@@ -50,6 +50,7 @@ namespace NServiceBus
                 {
                     destination = routeExpiredTimeoutTo;
                 }
+                
 
                 var data = new TimeoutData
                 {
@@ -64,7 +65,8 @@ namespace NServiceBus
                 if (data.Time.AddSeconds(-1) <= DateTime.UtcNow)
                 {
                     var outgoingMessage = new OutgoingMessage(context.MessageId, data.Headers, data.State);
-                    var transportOperation = new TransportOperation(outgoingMessage, new UnicastAddressTag(data.Destination));
+                    var addressTag = TimeoutManagerDestinationType.CreateAddressTag(context.Headers, data.Destination);
+                    var transportOperation = new TransportOperation(outgoingMessage, addressTag);
                     await dispatcher.Dispatch(new TransportOperations(transportOperation), context.TransportTransaction, context.Context).ConfigureAwait(false);
                     return;
                 }
