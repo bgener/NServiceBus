@@ -41,7 +41,7 @@ namespace NServiceBus
                 {
                     continue;
                 }
-                
+
                 var existingValue = prop.GetValue(entity.SagaData);
 
                 if (existingValue.ToString() != propertyValue.ToString())
