@@ -2,7 +2,6 @@ namespace NServiceBus
 {
     using System;
     using System.Collections.Concurrent;
-    using System.Collections.Generic;
     using System.Runtime.CompilerServices;
     using System.Threading.Tasks;
     using Extensibility;
@@ -30,18 +29,19 @@ namespace NServiceBus
         {
             Guard.AgainstNull(nameof(propertyValue), propertyValue);
 
+            var prop = typeof(TSagaData).GetProperty(propertyName);
+            if (prop == null)
+            {
+                return Task.FromResult(default(TSagaData));
+            }
+
             foreach (var entity in data.Values)
             {
                 if (!(entity.SagaData is TSagaData))
                 {
                     continue;
                 }
-
-                var prop = typeof(TSagaData).GetProperty(propertyName);
-                if (prop == null)
-                {
-                    continue;
-                }
+                
                 var existingValue = prop.GetValue(entity.SagaData);
 
                 if (existingValue.ToString() != propertyValue.ToString())
@@ -102,15 +102,7 @@ namespace NServiceBus
         void ValidateUniqueProperties(SagaCorrelationProperty correlationProperty, IContainSagaData saga)
         {
             var sagaType = saga.GetType();
-            var existingSagas = new List<VersionedSagaEntity>();
-            // ReSharper disable once LoopCanBeConvertedToQuery
-            foreach (var s in data)
-            {
-                if (s.Value.SagaData.GetType() == sagaType && (s.Key != saga.Id))
-                {
-                    existingSagas.Add(s.Value);
-                }
-            }
+
             var uniqueProperty = sagaType.GetProperty(correlationProperty.Name);
 
             if (correlationProperty.Value == null)
@@ -119,13 +111,17 @@ namespace NServiceBus
                 throw new InvalidOperationException(message);
             }
 
-            foreach (var storedSaga in existingSagas)
+            // ReSharper disable once LoopCanBeConvertedToQuery
+            foreach (var s in data)
             {
-                var storedSagaPropertyValue = uniqueProperty.GetValue(storedSaga.SagaData, null);
-                if (Equals(correlationProperty.Value, storedSagaPropertyValue))
+                if (s.Value.SagaData.GetType() == sagaType && (s.Key != saga.Id))
                 {
-                    var message = $"Cannot store a saga. The saga with id '{storedSaga.SagaData.Id}' already has property '{uniqueProperty.Name}'.";
-                    throw new InvalidOperationException(message);
+                    var storedSagaPropertyValue = uniqueProperty.GetValue(s.Value.SagaData, null);
+                    if (Equals(correlationProperty.Value, storedSagaPropertyValue))
+                    {
+                        var message = $"Cannot store a saga. The saga with id '{s.Value.SagaData.Id}' already has property '{uniqueProperty.Name}'.";
+                        throw new InvalidOperationException(message);
+                    }
                 }
             }
         }
