@@ -5,6 +5,7 @@
     using System.IO;
     using System.Linq;
     using System.Reflection;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using Hosting.Helpers;
     using Microsoft.CSharp;
@@ -172,7 +173,7 @@
 
             public Assembly Assembly { get; }
 
-            public DynamicAssembly(string nameWithExtension, DynamicAssembly[] references = null, Version version = null)
+            public DynamicAssembly(string nameWithExtension, DynamicAssembly[] references = null, Version version = null, [CallerMemberName] string testPath = "")
             {
                 if (version == null)
                 {
@@ -197,8 +198,8 @@
                 var provider = new CSharpCodeProvider();
                 var param = new CompilerParameters(new string[] { }, nameWithExtension);
                 param.GenerateExecutable = false;
-                param.OutputAssembly = FilePath = Path.Combine(GetTestAssemblyDirectory(), FileName);
-                param.TempFiles = new TempFileCollection(GetTestAssemblyDirectory(), false);
+                param.OutputAssembly = FilePath = Path.Combine(GetTestAssemblyDirectory(testPath), FileName);
+                param.TempFiles = new TempFileCollection(GetTestAssemblyDirectory(testPath), false);
 
                 foreach (var reference in references)
                 {
@@ -219,10 +220,10 @@
                 Assembly = result.CompiledAssembly;
             }
 
-            static string GetTestAssemblyDirectory()
+            static string GetTestAssemblyDirectory(string testPath)
             {
                 var directoryName = GetAssemblyDirectory();
-                var directory = Path.Combine(directoryName, "assemblyscannerfiles");
+                var directory = Path.Combine(directoryName, "assemblyscannerfiles", testPath);
                 if (!Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
@@ -259,7 +260,7 @@
 
             public void Dispose()
             {
-                File.Delete(FilePath);
+                //File.Delete(FilePath);
             }
         }
     }
